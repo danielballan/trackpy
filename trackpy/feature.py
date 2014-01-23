@@ -161,15 +161,32 @@ def refine(raw_image, image, radius, coord, iterations=10,
 
     return np.array(list(final_coords) + [mass, Rg, ecc, signal])
 
+
 @numba.autojit
-def numba_all(arr):
+def numba_all_below(arr, threshold):
     for i in arr:
-        if i > 0.005:
+        if i > threshold:
             return False
     return True 
 
 
-@numba.autojit(locals=dict(accurate=np.bool))
+@numba.autojit
+def numba_below(arr, threshold):
+    res = np.empty_like(arr, dtype=bool)
+    for i in range(len(arr)):
+        res[i] = arr[i] < threshold
+    return res
+
+
+@numba.autojit
+def numba_above(arr, threshold):
+    res = np.empty_like(arr, dtype=bool)
+    for i in range(len(arr)):
+        res[i] = arr[i] > threshold
+    return res
+
+
+@numba.autojit
 def _refine_loop(image, coord, radius, square, mask, iterations):
     ndim = image.ndim
 
@@ -179,22 +196,20 @@ def _refine_loop(image, coord, radius, square, mask, iterations):
     cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
     cm_i = cm_n - radius + coord  # image coords
     allow_moves = True
-    for iteration in range(iterations):
-        off_center = np.empty_like(cm_n)
+    for iteration in xrange(iterations):
         off_center = np.asarray(cm_n) - radius
-        accurate = numba_all(off_center)
-        if accurate:
+        if numba_all_below(off_center, 0.005):
             break  # Accurate enough.
 
         # If we're off by more than half a pixel in any direction, move.
-       # elif (np.abs(off_center) > 0.6).any() and allow_moves:
-       #     new_coord = np.empty_like(coord)
-       #     new_coord = coord
-       #     new_coord[off_center > 0.6] += 1
-       #     new_coord[off_center < -0.6] -= 1
-        #    # Don't move outside the image!
-        #    upper_bound = np.array(image.shape) - 1 - radius
-        #    new_coord = np.clip(new_coord, radius, upper_bound)
+        elif numba_all_below(off_center, 0.6) and allow_moves:
+            new_coord = np.empty_like(coord)
+            new_coord = coord
+            new_coord[numba_above(off_center, 0.6)] += 1
+            new_coord[numba_below(off_center, -0.6)] -= 1
+            # Don't move outside the image!
+            upper_bound = np.array(image.shape).astype(np.float64) - 1.0 - float(radius)
+            new_coord = np.clip(new_coord, radius, upper_bound).astype(int)
         #    square = [slice(c - radius, c + radius + 1) for c in new_coord]
         #    neighborhood = mask*image[square]
 
