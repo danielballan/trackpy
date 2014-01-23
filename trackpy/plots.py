@@ -23,7 +23,6 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import logging
 import motion
 
@@ -39,6 +38,7 @@ def make_axes(func):
               and return them. The user has the option to draw a more complex 
               plot in multiple steps.
     """
+    import matplotlib.pyplot as plt
     @wraps(func)
     def wrapper(*args, **kwargs):
         if kwargs.get('ax') is None:
@@ -63,6 +63,7 @@ def make_axes(func):
 
 def make_fig(func):
     """See make_axes."""
+    import matplotlib.pyplot as plt
     wraps(func)
     def wrapper(*args, **kwargs):
         if 'fig' not in kwargs:
@@ -94,6 +95,7 @@ def plot_traj(traj, colorby='particle', mpp=1, label=False, superimpose=None,
     -------
     None
     """
+    import matplotlib.pyplot as plt
     if (superimpose is not None) and (mpp != 1):
         raise NotImplementedError("When superimposing over an image, you " +
                                   "must plot in units of pixels. Leave " +
@@ -166,6 +168,7 @@ def annotate(centroids, image, circle_size=170, color='g',
     ------
     axes
     """ 
+    import matplotlib.pyplot as plt
     # The parameter image can be an image object or a filename.
     if isinstance(image, basestring):
         image = plt.itpead(image)
@@ -182,6 +185,7 @@ def annotate(centroids, image, circle_size=170, color='g',
 @make_axes
 def mass_ecc(f, ax=None):
     """Plot each particle's mass versus eccentricity."""
+    import matplotlib.pyplot as plt
     ax.plot(f['mass'], f['ecc'], 'ko', alpha=0.3)
     ax.set_xlabel('mass')
     ax.set_ylabel('eccentricity (0=circular)')
@@ -189,7 +193,8 @@ def mass_ecc(f, ax=None):
 
 @make_axes
 def mass_size(f, ax=None):
-    """Plot each particle's mass versus size."""
+    """Plot each probe's mass versus size."""
+    import matplotlib.pyplot as plt
     ax.plot(f['mass'], f['size'], 'ko', alpha=0.1)
     ax.set_xlabel('mass')
     ax.set_ylabel('size')
@@ -203,12 +208,14 @@ def subpx_bias(f, ax=None):
     -----
     If subpixel accuracy is good, this should be flat. If it depressed in the
     middle, try using a larger value for feature diameter."""
+    import matplotlib.pyplot as plt
     f[['x', 'y']].applymap(lambda x: x % 1).hist(ax=ax)
     return ax
 
 @make_axes
 def fit(data, fits, inverted_model=False, logx=False, logy=False, ax=None,
         **kwargs):
+    import matplotlib.pyplot as plt
     data = data.dropna()
     x, y = data.index.values.astype('float64'), data.values
     datalines = plt.plot(x, y, 'o', label=data.name)
@@ -241,6 +248,7 @@ def plot_principal_axes(img, x_bar, y_bar, cov, ax=None):
     Overflow at http://stackoverflow.com/questions/5869891/
     how-to-calculate-the-axis-of-orientation/5873296#5873296
     """
+    import matplotlib.pyplot as plt
     def make_lines(eigvals, eigvecs, mean, i):
         """Make lines a length of 2 stddev."""
         std = np.sqrt(eigvals[i])
@@ -254,6 +262,7 @@ def plot_principal_axes(img, x_bar, y_bar, cov, ax=None):
     ax.imshow(img)
 
 def examine_jumps(data, jumps):
+    import matplotlib.pyplot as plt
     fig, axes = plt.subplots(len(jumps), 1)
     for i, jump in enumerate(jumps):
         roi = data.ix[jump-10:jump+10]
@@ -268,6 +277,7 @@ def examine_jumps(data, jumps):
 
 @make_axes
 def plot_displacements(t, frame1, frame2, ax=None, **kwargs):
+    import matplotlib.pyplot as plt
     a = t[t.frame == frame1]
     b = t[t.frame == frame2]
     j= a.set_index('particle')[['x', 'y']].join(
