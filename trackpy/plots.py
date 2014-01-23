@@ -76,8 +76,8 @@ def make_fig(func):
 
 @make_axes
 def plot_traj(traj, colorby='particle', mpp=1, label=False, superimpose=None, 
-       cmap=mpl.cm.winter, ax=None):
-    """Plot traces of trajectories for each particle.
+       cmap=None, ax=None):
+    """Plot traces of trajectories for each probe.
     Optionally superimpose it on a frame from the video.
 
     Parameters
@@ -96,6 +96,8 @@ def plot_traj(traj, colorby='particle', mpp=1, label=False, superimpose=None,
     None
     """
     import matplotlib.pyplot as plt
+    if cmap is None:
+        cmap = plt.cm.winter
     if (superimpose is not None) and (mpp != 1):
         raise NotImplementedError("When superimposing over an image, you " +
                                   "must plot in units of pixels. Leave " +

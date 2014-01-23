@@ -31,6 +31,7 @@ from trackpy.preprocessing import bandpass, scale_to_gamut
 from .C_fallback_python import nullify_secondary_maxima
 from .utils import memo, record_meta, print_update
 import trackpy  # to get trackpy.__version__
+import numba
 
 
 def local_maxima(image, radius, separation, percentile=64):
@@ -134,48 +135,10 @@ def refine(raw_image, image, radius, coord, iterations=10,
 
     ndim = image.ndim
     mask = binary_mask(radius, ndim)
+    square = [slice(c - radius, c + radius + 1) for c in coord]
     coord = np.asarray(coord).copy()  # Do not modify coords; use a copy.
 
-    # Define the circular neighborhood of (x, y).
-    square = [slice(c - radius, c + radius + 1) for c in coord]
-    neighborhood = mask*image[square]
-    cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-    cm_i = cm_n - radius + coord  # image coords
-    allow_moves = True
-    for iteration in range(iterations):
-        off_center = cm_n - radius
-        if walkthrough:
-            print off_center
-        if np.all(np.abs(off_center) < 0.005):
-            break  # Accurate enough.
-
-        # If we're off by more than half a pixel in any direction, move.
-        elif np.any(np.abs(off_center) > 0.6) and allow_moves:
-            new_coord = coord
-            new_coord[off_center > 0.6] += 1
-            new_coord[off_center < -0.6] -= 1
-            # Don't move outside the image!
-            upper_bound = np.array(image.shape) - 1 - radius
-            new_coord = np.clip(new_coord, radius, upper_bound)
-            square = [slice(c - radius, c + radius + 1) for c in new_coord]
-            neighborhood = mask*image[square]
-
-        # If we're off by less than half a pixel, interpolate.
-        else:
-            # second-order spline.
-            neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
-                                         mode='constant', cval=0)
-            new_coord = coord + off_center
-            # Disallow any whole-pixels moves on future iterations.
-            allow_moves = False
-
-
-        cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-        cm_i = cm_n - radius + new_coord  # image coords
-        coord = new_coord
-
-    if walkthrough:
-        plt.imshow(neighborhood)
+    cm_i, neighborhood = _refine_loop(image, coord, radius, square, mask, iterations)
 
     # matplotlib and ndimage have opposite conventions for xy <-> yx.
     final_coords = cm_i[..., ::-1]
@@ -197,6 +160,58 @@ def refine(raw_image, image, radius, coord, iterations=10,
     signal = raw_neighborhood.max()  # black_level subtracted later
 
     return np.array(list(final_coords) + [mass, Rg, ecc, signal])
+
+@numba.autojit
+def numba_all(arr):
+    for i in arr:
+        if i > 0.005:
+            return False
+    return True 
+
+
+@numba.autojit(locals=dict(accurate=np.bool))
+def _refine_loop(image, coord, radius, square, mask, iterations):
+    ndim = image.ndim
+
+    # Define the circular neighborhood of (x, y).
+    square = [slice(c - radius, c + radius + 1) for c in coord]
+    neighborhood = mask*image[square]
+    cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+    cm_i = cm_n - radius + coord  # image coords
+    allow_moves = True
+    for iteration in range(iterations):
+        off_center = np.empty_like(cm_n)
+        off_center = np.asarray(cm_n) - radius
+        accurate = numba_all(off_center)
+        if accurate:
+            break  # Accurate enough.
+
+        # If we're off by more than half a pixel in any direction, move.
+       # elif (np.abs(off_center) > 0.6).any() and allow_moves:
+       #     new_coord = np.empty_like(coord)
+       #     new_coord = coord
+       #     new_coord[off_center > 0.6] += 1
+       #     new_coord[off_center < -0.6] -= 1
+        #    # Don't move outside the image!
+        #    upper_bound = np.array(image.shape) - 1 - radius
+        #    new_coord = np.clip(new_coord, radius, upper_bound)
+        #    square = [slice(c - radius, c + radius + 1) for c in new_coord]
+        #    neighborhood = mask*image[square]
+
+        # If we're off by less than half a pixel, interpolate.
+        # else:
+        #     # second-order spline.
+        #    neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
+        #                                  mode='constant', cval=0)
+        #    new_coord = coord + off_center
+        #     # Disallow any whole-pixels moves on future iterations.
+        #     allow_moves = False
+
+
+        # cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+        # cm_i = cm_n - radius + new_coord  # image coords
+        # coord = new_coord
+    return cm_i, neighborhood
 
 
 def locate(image, diameter, minmass=100., maxsize=None, separation=None,
