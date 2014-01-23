@@ -132,34 +132,8 @@ def refine(raw_image, image, radius, coord, iterations=10,
     walkthrough : boolean, False by default
         Print the offset on each loop and display final neighborhood image.
     """
+    pass
 
-    ndim = image.ndim
-    mask = binary_mask(radius, ndim)
-    square = [slice(c - radius, c + radius + 1) for c in coord]
-    coord = np.asarray(coord).copy()  # Do not modify coords; use a copy.
-
-    cm_i, neighborhood = _refine_loop(image, coord, radius, square, mask, iterations)
-
-    # matplotlib and ndimage have opposite conventions for xy <-> yx.
-    final_coords = cm_i[..., ::-1]
-
-    if not characterize:
-        return final_coords
-
-    # Characterize the neighborhood of our final centroid.
-    mass = neighborhood.sum()
-    Rg = np.sqrt(np.sum(r_squared_mask(radius, ndim)*neighborhood)/mass)
-    # I only know how to measure eccentricity in 2D.
-    if ndim == 2:
-        ecc = np.sqrt(np.sum(neighborhood*cosmask(radius))**2 +
-                      np.sum(neighborhood*sinmask(radius))**2)
-        ecc /= (mass - neighborhood[radius, radius] + 1e-6)
-    else:
-        ecc = np.nan
-    raw_neighborhood = mask*raw_image[square]
-    signal = raw_neighborhood.max()  # black_level subtracted later
-
-    return np.array(list(final_coords) + [mass, Rg, ecc, signal])
 
 
 @numba.autojit
@@ -187,46 +161,77 @@ def numba_above(arr, threshold):
 
 
 @numba.autojit
-def _refine_loop(image, coord, radius, square, mask, iterations):
+def _refine(image, raw_image, radius, coords):
+    iterations = 10
     ndim = image.ndim
+    mask = binary_mask(radius, ndim)
+    final_coords = np.empty_like(coords)
+    N = coords.shape[0]
+    mass = np.empty(N)
+    Rg = np.empty(N)
+    ecc = np.empty(N)
+    signal = np.empty(N)
 
-    # Define the circular neighborhood of (x, y).
-    square = [slice(c - radius, c + radius + 1) for c in coord]
-    neighborhood = mask*image[square]
-    cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-    cm_i = cm_n - radius + coord  # image coords
-    allow_moves = True
-    for iteration in xrange(iterations):
-        off_center = np.asarray(cm_n) - radius
-        if numba_all_below(off_center, 0.005):
-            break  # Accurate enough.
+    for i in range(N):
+        coord = np.asarray(coords[i]).copy()
+        ndim = image.ndim
 
-        # If we're off by more than half a pixel in any direction, move.
-        elif numba_all_below(off_center, 0.6) and allow_moves:
-            new_coord = np.empty_like(coord)
-            new_coord = coord
-            new_coord[numba_above(off_center, 0.6)] += 1
-            new_coord[numba_below(off_center, -0.6)] -= 1
-            # Don't move outside the image!
-            upper_bound = np.array(image.shape).astype(np.float64) - 1.0 - float(radius)
-            new_coord = np.clip(new_coord, radius, upper_bound).astype(int)
-        #    square = [slice(c - radius, c + radius + 1) for c in new_coord]
-        #    neighborhood = mask*image[square]
+        # Define the circular neighborhood of (x, y).
+        square = [slice(c - radius, c + radius + 1) for c in coord]
+        neighborhood = mask*image[square]
+        cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+        cm_i = cm_n - radius + coord  # image coords
+        allow_moves = True
+        for iteration in range(iterations):
+            off_center = np.asarray(cm_n) - radius
+            if numba_all_below(off_center, 0.005):
+                break  # Accurate enough.
 
-        # If we're off by less than half a pixel, interpolate.
-        # else:
-        #     # second-order spline.
-        #    neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
-        #                                  mode='constant', cval=0)
-        #    new_coord = coord + off_center
-        #     # Disallow any whole-pixels moves on future iterations.
-        #     allow_moves = False
+            # If we're off by more than half a pixel in any direction, move.
+            elif numba_all_below(off_center, 0.6) and allow_moves:
+                new_coord = np.empty_like(coord)
+                new_coord = coord
+                new_coord[numba_above(off_center, 0.6)] += 1
+                new_coord[numba_below(off_center, -0.6)] -= 1
+                # Don't move outside the image!
+                shape = np.array(image.shape).astype(np.float64)
+                upper_bound = shape - 1.0 - float(radius)
+                new_coord = np.clip(new_coord, radius, upper_bound).astype(int)
+                # square = [slice(c - radius, c + radius + 1) for c in new_coord]
+                # neighborhood = mask*image[square]
+            else:
+                break
+
+            # If we're off by less than half a pixel, interpolate.
+            # else:
+            #     # second-order spline.
+            #    neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
+            #                                  mode='constant', cval=0)
+            #    new_coord = coord + off_center
+            #     # Disallow any whole-pixels moves on future iterations.
+            #     allow_moves = False
 
 
-        # cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-        # cm_i = cm_n - radius + new_coord  # image coords
-        # coord = new_coord
-    return cm_i, neighborhood
+            # cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+            # cm_i = cm_n - radius + new_coord  # image coords
+            # coord = new_coord
+        # matplotlib and ndimage have opposite conventions for xy <-> yx.
+        final_coords[i] = cm_i[..., ::-1]
+
+        # Characterize the neighborhood of our final centroid.
+        mass[i] = neighborhood.sum()
+        Rg[i] = np.sqrt(np.sum(r_squared_mask(radius, ndim)*neighborhood)/mass[i])
+        # I only know how to measure eccentricity in 2D.
+        if ndim == 2:
+            ecc[i] = np.sqrt(np.sum(neighborhood*cosmask(radius))**2 +
+                          np.sum(neighborhood*sinmask(radius))**2)
+            ecc[i] /= (mass[i] - neighborhood[radius, radius] + 1e-6)
+        else:
+            ecc[i] = np.nan
+        raw_neighborhood = mask*raw_image[square]
+        signal[i] = raw_neighborhood.max()  # black_level subtracted later
+    result = np.column_stack([final_coords, mass, Rg, ecc, signal])
+    return result
 
 
 def locate(image, diameter, minmass=100., maxsize=None, separation=None,
@@ -326,9 +331,7 @@ def locate(image, diameter, minmass=100., maxsize=None, separation=None,
 
     # Refine their locations and characterize mass, size, etc.
     ndim = image.ndim
-    refined_coords = np.empty((count_qualified, ndim + 4))
-    for i in range(count_qualified):
-        refined_coords[i] = refine(image, bp_image, radius, coords[i])
+    refined_coords = _refine(image, bp_image, radius, coords)
 
     # Filter by minmass again, using final ("exact") mass.
     exact_mass = refined_coords[:, ndim]
