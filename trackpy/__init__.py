@@ -23,3 +23,9 @@ logging.basicConfig(level=logging.WARN, format=FORMAT)
 
 from trackpy.api import *
 from trackpy.version import version as __version__
+
+import numba
+import numba.codegen.debug
+
+llvmlogger = logging.getLogger('numba.codegen.debug')
+llvmlogger.setLevel(logging.INFO)
