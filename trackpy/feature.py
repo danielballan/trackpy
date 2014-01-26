@@ -198,7 +198,6 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
 
             # If we're off by more than half a pixel in any direction, move.
             elif ~numba_all_below(off_center, 0.6) and allow_moves:
-                new_coord = np.empty_like(coord)
                 new_coord = coord
                 new_coord[numba_above(off_center, 0.6)] += 1
                 new_coord[numba_below(off_center, -0.6)] -= 1
