@@ -161,29 +161,30 @@ def numba_above(arr, threshold):
 
 
 @numba.autojit
-def _refine(image, raw_image, radius, coords):
+def _refine(image, raw_image, radius, coords, slices):
     iterations = 10
     ndim = image.ndim
     mask = binary_mask(radius, ndim)
-    final_coords = np.empty_like(coords)
+
+    # Declare arrays that we will fill iteratively through loop.
     N = coords.shape[0]
+    final_coords = np.empty_like(coords, dtype=np.float64)
     mass = np.empty(N)
     Rg = np.empty(N)
     ecc = np.empty(N)
     signal = np.empty(N)
 
-    for i in range(N):
+    for i in np.arange(N):
         coord = np.asarray(coords[i]).copy()
-        ndim = image.ndim
+        square = slices[i]
 
         # Define the circular neighborhood of (x, y).
-        square = [slice(c - radius, c + radius + 1) for c in coord]
         neighborhood = mask*image[square]
         cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-        cm_i = cm_n - radius + coord  # image coords
+        cm_i = cm_n - float(radius) + coord.astype(np.float)# image coords
         allow_moves = True
-        for iteration in range(iterations):
-            off_center = np.asarray(cm_n) - radius
+        for iteration in np.arange(iterations):
+            off_center = cm_n - float(radius)
             if numba_all_below(off_center, 0.005):
                 break  # Accurate enough.
 
@@ -194,27 +195,26 @@ def _refine(image, raw_image, radius, coords):
                 new_coord[numba_above(off_center, 0.6)] += 1
                 new_coord[numba_below(off_center, -0.6)] -= 1
                 # Don't move outside the image!
-                shape = np.array(image.shape).astype(np.float64)
-                upper_bound = shape - 1.0 - float(radius)
+                # shape = np.array(image.shape)
+                # upper_bound = shape - 1 - radius
+                upper_bound = np.array([1000, 1000])  # FOR NOW
                 new_coord = np.clip(new_coord, radius, upper_bound).astype(int)
-                # square = [slice(c - radius, c + radius + 1) for c in new_coord]
-                # neighborhood = mask*image[square]
-            else:
-                break
+                # update slice, somehow
+                neighborhood = mask*image[square]
 
             # If we're off by less than half a pixel, interpolate.
-            # else:
+            else:
             #     # second-order spline.
-            #    neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
-            #                                  mode='constant', cval=0)
-            #    new_coord = coord + off_center
-            #     # Disallow any whole-pixels moves on future iterations.
-            #     allow_moves = False
+                neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
+                                              mode='constant', cval=0)
+                new_coord = coord + off_center
+                # Disallow any whole-pixels moves on future iterations.
+                allow_moves = False
 
 
-            # cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-            # cm_i = cm_n - radius + new_coord  # image coords
-            # coord = new_coord
+            cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+            cm_i = cm_n - radius + new_coord  # image coords
+            coord = new_coord
         # matplotlib and ndimage have opposite conventions for xy <-> yx.
         final_coords[i] = cm_i[..., ::-1]
 
@@ -331,7 +331,9 @@ def locate(image, diameter, minmass=100., maxsize=None, separation=None,
 
     # Refine their locations and characterize mass, size, etc.
     ndim = image.ndim
-    refined_coords = _refine(image, bp_image, radius, coords)
+    slices = [[slice(c - radius, c + radius + 1) for c in coord]
+              for coord in coords]
+    refined_coords = _refine(image, bp_image, radius, coords, slices)
 
     # Filter by minmass again, using final ("exact") mass.
     exact_mass = refined_coords[:, ndim]
