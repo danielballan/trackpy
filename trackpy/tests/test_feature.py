@@ -289,30 +289,32 @@ class TestFeatureIdentification(unittest.TestCase):
         L = 21
         dims = (L, L + 2)  # avoid square images in tests
         pos = np.array([7, 13])
-        guess = np.array([[6, 13]])
         cols = ['x', 'y']
         expected = np.array([pos])
 
         image = np.ones(dims, dtype='uint8')
         draw_gaussian_spot(image, pos[::-1], 2)
+
+        guess = np.array([[6, 13]])
         actual = tp.feature.refine(image, image, 6, guess, characterize=False)
         assert_allclose(actual, expected, atol=0.1)
 
-        guess = np.array([7, 12])
+        guess = np.array([[7, 12]])
         actual = tp.feature.refine(image, image, 6, guess, characterize=False)
         assert_allclose(actual, expected, atol=0.1)
 
-        guess = np.array([7, 14])
+        guess = np.array([[7, 14]])
         actual = tp.feature.refine(image, image, 6, guess, characterize=False)
         assert_allclose(actual, expected, atol=0.1)
 
-        guess = np.array([6, 13])
+        guess = np.array([[6, 13]])
         actual = tp.feature.refine(image, image, 6, guess, characterize=False)
         assert_allclose(actual, expected, atol=0.1)
 
-        guess = np.array([6, 12])
+        guess = np.array([[6, 12]])
         actual = tp.feature.refine(image, image, 6, guess, characterize=False)
         assert_allclose(actual, expected, atol=0.1)
+
 if __name__ == '__main__':
     import nose
     nose.runmodule(argv=[__file__, '-vvs', '-x', '--pdb', '--pdb-failure'],

@@ -132,8 +132,8 @@ def refine(raw_image, image, radius, coords, iterations=10,
     walkthrough : boolean, False by default
         Print the offset on each loop and display final neighborhood image.
     """
-    # Do some pure Python stuff that can't be done in numba,
-    # then do the looping in numba.
+    # Do some pure Python stuff that can't be done in numba;
+    # then perform the costly main loop in numba.
     slices = [[slice(c - radius, c + radius + 1) for c in coord]
               for coord in coords]
     shape = np.array(image.shape)  # can't use a tuple inside numba
@@ -182,9 +182,9 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
     ecc = np.empty(N)
     signal = np.empty(N)
 
-    for i in np.arange(N):
-        coord = np.asarray(coords[i]).copy()
-        square = slices[i]
+    for feat in np.arange(N):
+        coord = np.asarray(coords[feat]).copy()
+        square = slices[feat]
 
         # Define the circular neighborhood of (x, y).
         neighborhood = mask*image[square]
@@ -197,22 +197,24 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
                 break  # Accurate enough.
 
             # If we're off by more than half a pixel in any direction, move.
-            elif numba_all_below(off_center, 0.6) and allow_moves:
+            elif ~numba_all_below(off_center, 0.6) and allow_moves:
                 new_coord = np.empty_like(coord)
                 new_coord = coord
                 new_coord[numba_above(off_center, 0.6)] += 1
                 new_coord[numba_below(off_center, -0.6)] -= 1
                 # Don't move outside the image!
-                # shape = np.array(image.shape)
                 # upper_bound = shape - 1 - radius
                 upper_bound = np.array([1000, 1000])  # FOR NOW
                 new_coord = np.clip(new_coord, radius, upper_bound).astype(int)
-                # update slice, somehow
+                # Update slice to shifted position.
+                for i in np.arange(ndim):
+                    c = new_coord[i]
+                    square[i] = slice(c - radius, c + radius + 1)
                 neighborhood = mask*image[square]
 
             # If we're off by less than half a pixel, interpolate.
             else:
-            #     # second-order spline.
+                # second-order spline.
                 neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
                                               mode='constant', cval=0)
                 new_coord = coord + off_center
@@ -220,24 +222,25 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
                 allow_moves = False
 
 
-            cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
+            cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood
             cm_i = cm_n - radius + new_coord  # image coords
             coord = new_coord
         # matplotlib and ndimage have opposite conventions for xy <-> yx.
-        final_coords[i] = cm_i[..., ::-1]
+        final_coords[feat] = cm_i[..., ::-1]
 
         # Characterize the neighborhood of our final centroid.
-        mass[i] = neighborhood.sum()
-        Rg[i] = np.sqrt(np.sum(r_squared_mask(radius, ndim)*neighborhood)/mass[i])
+        mass[feat] = neighborhood.sum()
+        Rg[feat] = np.sqrt(np.sum(r_squared_mask(radius, ndim)*
+                                      neighborhood)/mass[feat])
         # I only know how to measure eccentricity in 2D.
         if ndim == 2:
-            ecc[i] = np.sqrt(np.sum(neighborhood*cosmask(radius))**2 +
+            ecc[feat] = np.sqrt(np.sum(neighborhood*cosmask(radius))**2 +
                           np.sum(neighborhood*sinmask(radius))**2)
-            ecc[i] /= (mass[i] - neighborhood[radius, radius] + 1e-6)
+            ecc[feat] /= (mass[feat] - neighborhood[radius, radius] + 1e-6)
         else:
-            ecc[i] = np.nan
+            ecc[feat] = np.nan
         raw_neighborhood = mask*raw_image[square]
-        signal[i] = raw_neighborhood.max()  # black_level subtracted later
+        signal[feat] = raw_neighborhood.max()  # black_level subtracted later
     result = np.column_stack([final_coords, mass, Rg, ecc, signal])
     return result
 
