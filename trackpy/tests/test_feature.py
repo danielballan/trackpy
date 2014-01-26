@@ -286,11 +286,11 @@ class TestFeatureIdentification(unittest.TestCase):
 
 
     def test_whole_pixel_shifts(self):
-        L = 21
         return 
+        L = 21
         dims = (L, L + 2)  # avoid square images in tests
         pos = np.array([7, 13])
-        guess = np.array([6, 13])
+        guess = np.array([[6, 13]])
         cols = ['x', 'y']
         expected = pos
 

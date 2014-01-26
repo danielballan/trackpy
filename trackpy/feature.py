@@ -109,7 +109,7 @@ def _safe_center_of_mass(x, radius):
         return result
 
 
-def refine(raw_image, image, radius, coord, iterations=10,
+def refine(raw_image, image, radius, coords, iterations=10,
            characterize=True, walkthrough=False):
     """Find the center of mass of a bright feature starting from an estimate.
 
@@ -132,8 +132,11 @@ def refine(raw_image, image, radius, coord, iterations=10,
     walkthrough : boolean, False by default
         Print the offset on each loop and display final neighborhood image.
     """
-    pass
-
+    # Do some pure Python stuff that can't be done in numba,
+    # then do the looping in numba.
+    slices = [[slice(c - radius, c + radius + 1) for c in coord]
+              for coord in coords]
+    return _refine(raw_image, image, radius, coords, iterations, slices)
 
 
 @numba.autojit
@@ -161,8 +164,7 @@ def numba_above(arr, threshold):
 
 
 @numba.autojit
-def _refine(image, raw_image, radius, coords, slices):
-    iterations = 10
+def _refine(image, raw_image, radius, coords, iterations, slices):
     ndim = image.ndim
     mask = binary_mask(radius, ndim)
 
@@ -330,13 +332,10 @@ def locate(image, diameter, minmass=100., maxsize=None, separation=None,
     count_qualified = coords.shape[0]
 
     # Refine their locations and characterize mass, size, etc.
-    ndim = image.ndim
-    slices = [[slice(c - radius, c + radius + 1) for c in coord]
-              for coord in coords]
-    refined_coords = _refine(image, bp_image, radius, coords, slices)
+    refined_coords = refine(image, bp_image, radius, coords)
 
     # Filter by minmass again, using final ("exact") mass.
-    exact_mass = refined_coords[:, ndim]
+    exact_mass = refined_coords[:, image.ndim]
     refined_coords = refined_coords[exact_mass > minmass]
     count_qualified = refined_coords.shape[0]
 
@@ -350,10 +349,10 @@ def locate(image, diameter, minmass=100., maxsize=None, separation=None,
             refined_coords = refined_coords[np.argsort(exact_mass)][-topn:]
 
     # Return the results in a DataFrame.
-    if ndim < 4:
+    if image.ndim < 4:
         coord_columns = ['x', 'y', 'z'][:image.ndim]
     else:
-        coord_columns = map(lambda i: 'x' + str(i), range(ndim))
+        coord_columns = map(lambda i: 'x' + str(i), range(image.ndim))
     columns = coord_columns + ['mass', 'size', 'ecc', 'signal']
     if len(refined_coords) == 0:
         return DataFrame(columns=columns)  # TODO fill with np.empty
