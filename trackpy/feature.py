@@ -136,7 +136,13 @@ def refine(raw_image, image, radius, coords, iterations=10,
     # then do the looping in numba.
     slices = [[slice(c - radius, c + radius + 1) for c in coord]
               for coord in coords]
-    return _refine(raw_image, image, radius, coords, iterations, slices)
+    shape = np.array(image.shape)  # can't use a tuple inside numba
+    results = _refine(raw_image, image, radius, coords, iterations, 
+                      slices, shape)
+    if characterize:
+        return results
+    else:
+        return results[:, :image.ndim]
 
 
 @numba.autojit
@@ -164,7 +170,7 @@ def numba_above(arr, threshold):
 
 
 @numba.autojit
-def _refine(image, raw_image, radius, coords, iterations, slices):
+def _refine(image, raw_image, radius, coords, iterations, slices, shape):
     ndim = image.ndim
     mask = binary_mask(radius, ndim)
 

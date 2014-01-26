@@ -286,13 +286,12 @@ class TestFeatureIdentification(unittest.TestCase):
 
 
     def test_whole_pixel_shifts(self):
-        return 
         L = 21
         dims = (L, L + 2)  # avoid square images in tests
         pos = np.array([7, 13])
         guess = np.array([[6, 13]])
         cols = ['x', 'y']
-        expected = pos
+        expected = np.array([pos])
 
         image = np.ones(dims, dtype='uint8')
         draw_gaussian_spot(image, pos[::-1], 2)
