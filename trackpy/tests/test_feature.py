@@ -50,7 +50,7 @@ def compare(shape, count, radius, noise_level):
 class TestFeatureIdentification(unittest.TestCase):
 
     def setUp(self):
-        pass
+        import trackpy as tp  # Will this compile numba?
 
     def test_smoke_test(self):
         # simple "smoke" test to see if numba explodes
