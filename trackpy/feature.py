@@ -511,7 +511,7 @@ def batch(frames, diameter, minmass=100, maxsize=None, separation=None,
         return pd.concat(all_centroids).reset_index(drop=True)
 
 
-@memo
+# @memo
 def binary_mask(radius, ndim, separation=None):
     "circular mask in a square array"
     points = np.arange(-radius, radius + 1)
@@ -523,7 +523,7 @@ def binary_mask(radius, ndim, separation=None):
     return r <= radius
 
 
-@memo
+# @memo
 def r_squared_mask(radius, ndim):
     points = np.arange(-radius, radius + 1)
     if ndim > 1:
@@ -535,7 +535,7 @@ def r_squared_mask(radius, ndim):
     return r2
 
 
-@memo
+# @memo
 def theta_mask(radius):
     # 2D only
     tan_of_coord = lambda y, x: np.arctan2(radius - y, x - radius)
@@ -543,16 +543,15 @@ def theta_mask(radius):
     return np.fromfunction(tan_of_coord, (diameter, diameter))
 
 
-@memo
+# @memo
 def sinmask(radius):
     return np.sin(2*theta_mask(radius))
 
 
-@memo
+# @memo
 def cosmask(radius):
     return np.cos(2*theta_mask(radius))
 
 
-@memo
 def _warn_no_maxima():
     warnings.warn("No local maxima were found.", UserWarning)
