@@ -31,7 +31,7 @@ from trackpy.preprocessing import bandpass, scale_to_gamut
 from .C_fallback_python import nullify_secondary_maxima
 from .utils import memo, record_meta, print_update
 import trackpy  # to get trackpy.__version__
-import numba
+from .try_numba import try_numba_autojit
 
 
 def local_maxima(image, radius, separation, percentile=64):
@@ -145,7 +145,7 @@ def refine(raw_image, image, radius, coords, iterations=10,
         return results[:, :image.ndim]
 
 
-@numba.autojit
+@try_numba_autojit
 def numba_all_below(arr, threshold):
     for i in arr:
         if i > threshold:
@@ -153,7 +153,7 @@ def numba_all_below(arr, threshold):
     return True 
 
 
-@numba.autojit
+@try_numba_autojit
 def numba_below(arr, threshold):
     res = np.empty_like(arr, dtype=bool)
     for i in range(len(arr)):
@@ -161,7 +161,7 @@ def numba_below(arr, threshold):
     return res
 
 
-@numba.autojit
+@try_numba_autojit
 def numba_above(arr, threshold):
     res = np.empty_like(arr, dtype=bool)
     for i in range(len(arr)):
@@ -169,10 +169,11 @@ def numba_above(arr, threshold):
     return res
 
 
-@numba.autojit
+@try_numba_autojit
 def _refine(image, raw_image, radius, coords, iterations, slices, shape):
     ndim = image.ndim
     mask = binary_mask(radius, ndim)
+    coords = np.asarray(coords).copy()
 
     # Declare arrays that we will fill iteratively through loop.
     N = coords.shape[0]
@@ -183,13 +184,13 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
     signal = np.empty(N)
 
     for feat in np.arange(N):
-        coord = np.asarray(coords[feat]).copy()
-        square = slices[feat]
+        coord = coords[feat]
 
         # Define the circular neighborhood of (x, y).
+        square = slices[feat]
         neighborhood = mask*image[square]
-        cm_n = _safe_center_of_mass(neighborhood, radius)  # neighborhood coords
-        cm_i = cm_n - float(radius) + coord.astype(np.float)# image coords
+        cm_n = _safe_center_of_mass(neighborhood, radius)
+        cm_i = cm_n - float(radius) + coord.astype(np.float)  # image coords
         allow_moves = True
         for iteration in np.arange(iterations):
             off_center = cm_n - float(radius)
@@ -214,8 +215,8 @@ def _refine(image, raw_image, radius, coords, iterations, slices, shape):
             # If we're off by less than half a pixel, interpolate.
             else:
                 # second-order spline.
-                neighborhood = ndimage.shift(neighborhood, -off_center, order=2,
-                                              mode='constant', cval=0)
+                neighborhood = ndimage.shift(neighborhood, -off_center, 
+                                             order=2, mode='constant', cval=0)
                 new_coord = coord + off_center
                 # Disallow any whole-pixels moves on future iterations.
                 allow_moves = False
