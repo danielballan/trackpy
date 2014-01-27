@@ -1,19 +1,35 @@
+import ast
+import inspect
 import logging
 
 
-_numba_enabled = True
+_numba_capable = dict()
 
-def numba_enabled():
-    return _numba_enabled
+
+def try_numba_autojit(func):
+    module_name = inspect.getmoduleinfo(func.func_globals['__file__']).name
+    namespace = '.'.join(['trackpy', module_name])
+    _numba_capable[(namespace, func.func_name)] = func
 
 
 def disable_numba():
-    global _numba_enabled
-    _numba_enabled = False
+    for func_info, func in _numba_capable.items():
+        namespace, func_name = func_info
+        reference = getattr(__import__(namespace), func_name)
+        reference = func
+
 
 def enable_numba():
-    global _numba_enabled
-    _numba_enabled = True
+    try:
+        import numba
+    except:
+        pass
+    else:
+        hush_llvm()
+        for func_info, func in _numba_capable.items():
+            namespace, func_name = func_info
+            reference = getattr(__import__(namespace), func_name)
+            reference = numba.autojit(func)
 
 
 def hush_llvm():
@@ -23,20 +39,3 @@ def hush_llvm():
     import numba.codegen.debug
     llvmlogger = logging.getLogger('numba.codegen.debug')
     llvmlogger.setLevel(logging.INFO)
-
-
-def try_numba_autojit(func):
-    def func_(*args):
-        if numba_enabled():
-            try:
-                import numba
-            except:
-                pass
-            else:
-                hush_llvm()
-                return numba.autojit(func)(*args)
-        return func(*args)
-    return func_
-
-# import numba
-# try_numba_autojit = numba.autojit  # Is the wrapper causing trouble?
