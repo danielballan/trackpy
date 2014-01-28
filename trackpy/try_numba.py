@@ -1,35 +1,48 @@
 import ast
+import sys
 import inspect
 import logging
 
 
+ENABLE_NUMBA_ON_IMPORT = True
 _numba_capable = dict()
 
 
 def try_numba_autojit(func):
     module_name = inspect.getmoduleinfo(func.func_globals['__file__']).name
-    namespace = '.'.join(['trackpy', module_name])
-    _numba_capable[(namespace, func.func_name)] = func
+    module_name = '.'.join(['trackpy', module_name])
+    _numba_capable[(module_name, func.func_name)] = func
+    if ENABLE_NUMBA_ON_IMPORT:
+        try:
+            import numba
+        except ImportError:
+            pass
+        else:
+            hush_llvm()
+            return numba.autojit(func)
+    else:
+        return func
 
 
 def disable_numba():
-    for func_info, func in _numba_capable.items():
-        namespace, func_name = func_info
-        reference = getattr(__import__(namespace), func_name)
-        reference = func
+    "Do not use numba-accelerated functions, even if numba is available."
+    for namespace, func in _numba_capable.items():
+        module_name, func_name = namespace 
+        setattr(sys.modules[module_name], func_name, func)
 
 
 def enable_numba():
+    "Use numba-accelerated variants of core functions."
     try:
         import numba
     except:
-        pass
+        raise ImportError("To use numba-accelerated variants of core "
+                          "functions, you must install numba.")
     else:
         hush_llvm()
-        for func_info, func in _numba_capable.items():
-            namespace, func_name = func_info
-            reference = getattr(__import__(namespace), func_name)
-            reference = numba.autojit(func)
+        for namespace, func in _numba_capable.items():
+            module_name, func_name = namespace
+            setattr(sys.modules[module_name], func_name, numba.autojit(func))
 
 
 def hush_llvm():
