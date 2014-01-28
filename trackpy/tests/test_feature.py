@@ -6,6 +6,7 @@ from pandas import DataFrame, Series
 import trackpy as tp
 
 import unittest
+import nose
 from numpy.testing import assert_almost_equal, assert_allclose
 from numpy.testing.decorators import slow
 from pandas.util.testing import (assert_series_equal, assert_frame_equal)
@@ -339,7 +340,13 @@ class TestFeatureIdentificationWithNumba(
 
     def setUp(self):
         import trackpy as tp
-        tp.enable_numba()  # default as of this writing, but could change
+        try:
+            import numba
+        except ImportError:
+            pass
+            # Test will be skipped -- see check_skip()
+        else:
+            tp.enable_numba()  # enabled by default as of this writing
 
     def check_skip(self):
         try:
