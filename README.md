@@ -84,7 +84,8 @@ Open a command prompt. That's "Terminal" on a Mac, and
 "Start > Applications > Command Prompt" on Windows. Type these
 lines:
 
-    conda install numpy=1.7.1 scipy=0.13.0 matplotlib=1.3 pandas=0.13.0 numba=0.11 PIL pyyaml
+    conda update conda
+    conda install numpy=1.8 scipy=0.13.0 matplotlib=1.3 pandas=0.13.0 numba=0.12.2 PIL pyyaml
     conda install pip
     pip install http://github.com/soft-matter/pims/zipball/master
     pip install http://github.com/soft-matter/trackpy/zipball/master
