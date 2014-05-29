@@ -1,5 +1,6 @@
 from .motion import *
 from .plots import *
+from .widgets import *
 from .linking import *
 from .filtering import *
 from .feature import locate, batch
