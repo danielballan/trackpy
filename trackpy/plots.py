@@ -279,9 +279,9 @@ def plot_displacements(t, frame1, frame2, scale=1, ax=None, **kwargs):
     arrow_specs = j[['x', 'y', 'dx', 'dy']].dropna()
 
     # Arrow defaults
-    default_arrow_props = dict(arrowstyle='->', connectionstyle='arc3',
+    default_arrowprops = dict(arrowstyle='->', connectionstyle='arc3',
                                linewidth=2)
-    kwargs['arrowprops'] = kwargs.get('arrowprops', default_arrow_props)
+    kwargs['arrowprops'] = kwargs.get('arrowprops', default_arrowprops)
     for _, row in arrow_specs.iterrows():
         xy = row[['x', 'y']]  # arrow start
         xytext = xy.values + scale*row[['dx', 'dy']].values  # arrow end
