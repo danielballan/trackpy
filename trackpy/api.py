@@ -1,4 +1,5 @@
 from .motion import *
+from .hetero import *
 from .plots import *
 from .linking import *
 from .filtering import *
