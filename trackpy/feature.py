@@ -459,6 +459,10 @@ def locate(raw_image, diameter, minmass=100., maxsize=None, separation=None,
     ----------
     image : image array (any dimensions)
     diameter : feature size in px
+        This may be a single number or a tuple giving the feature's
+        extent in each dimension, useful when the dimensions do not have
+        equal resolution (e.g. confocal microscopy). The number(s) must
+        be odd integers. When in doubt, round up.
     minmass : minimum integrated brightness
         Default is 100, but a good value is often much higher. This is a
         crucial parameter for elminating spurious features.
@@ -683,6 +687,10 @@ def batch(frames, diameter, minmass=100, maxsize=None, separation=None,
     ----------
     frames : list (or iterable) of images
     diameter : feature size in px
+        This may be a single number or a tuple giving the feature's
+        extent in each dimension, useful when the dimensions do not have
+        equal resolution (e.g. confocal microscopy). The number(s) must
+        be odd integers. When in doubt, round up.
     minmass : minimum integrated brightness
         Default is 100, but a good value is often much higher. This is a
         crucial parameter for elminating spurious features.
